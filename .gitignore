@@ -1,0 +1,11 @@
+# Ignore credentials and data
+config.txt
+*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Editor
+.vscode/
+.DS_Store
