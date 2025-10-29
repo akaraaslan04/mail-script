@@ -1,4 +1,4 @@
-# Automated Mailer
+# Automated Mailer, Exclusivley for ITU Mathematics&Computer Club's Mentorship Programe
 
 A small Python utility to send personalized, HTML email notifications to mentees. The script reads a CSV of matches, formats an HTML template and subject (from `subject.txt`), and sends messages via SMTP. Includes a safe dry-run mode so you can preview messages without sending, and fallbacks to handle CSVs with or without headers.
 
