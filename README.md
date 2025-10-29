@@ -43,6 +43,27 @@ python auto_mailv2.py
 
 - The script includes heuristics to handle CSVs that lack exact headers, and a safe template formatter that avoids interpreting CSS braces as format placeholders.
 
+## Logging
+
+The script will create two runtime CSV logs in the working directory (these files are ignored by Git by default):
+
+- `sent_emails.csv` — appended for each message formatted/sent. Columns:
+	1. timestamp (UTC, ISO format)
+ 2. recipient_email
+ 3. recipient_name
+ 4. subject
+ 5. body (full rendered HTML/text)
+
+- `failed_emails.csv` — appended for each failed or skipped message. Columns:
+	1. timestamp (UTC, ISO format)
+ 2. recipient_email
+ 3. recipient_name
+ 4. subject
+ 5. body
+ 6. reason (error message or reason for skip)
+
+These files are added to `.gitignore` to avoid accidental commits of participant data.
+
 ## License
 
 MIT
