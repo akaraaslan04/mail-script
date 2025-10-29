@@ -92,23 +92,57 @@ def ensure_log_file(path, headers):
 
 
 def log_sent(recipient_email, recipient_name, subject, body):
-    ts = datetime.datetime.utcnow().isoformat()
-    try:
-        with open(LOG_SENT_FILE, 'a', encoding='utf-8', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([ts, recipient_email or '', recipient_name or '', subject or '', body or ''])
-    except Exception as e:
-        print(f"Warning: failed to write to {LOG_SENT_FILE}: {e}")
+    # accumulate to in-memory group; actual file write happens in flush_logs()
+    key = (subject or '', (body or '')[:400])
+    sent_groups.setdefault(key, {'emails': [], 'names': []})
+    sent_groups[key]['emails'].append(recipient_email or '')
+    sent_groups[key]['names'].append(recipient_name or '')
 
 
 def log_failed(recipient_email, recipient_name, subject, body, reason):
-    ts = datetime.datetime.utcnow().isoformat()
+    # accumulate to in-memory group; actual file write happens in flush_logs()
+    key = (subject or '', (body or '')[:400])
+    failed_groups.setdefault(key, {'emails': [], 'names': [], 'reasons': []})
+    failed_groups[key]['emails'].append(recipient_email or '')
+    failed_groups[key]['names'].append(recipient_name or '')
+    failed_groups[key]['reasons'].append(reason or '')
+
+# In-memory group accumulators (subject + preview -> recipients)
+sent_groups = {}
+failed_groups = {}
+
+
+def flush_logs():
+    """Write grouped sent/failed entries to CSV files.
+
+    Each grouped row contains one template (subject + preview) and a list of recipients.
+    """
+    # write sent groups
     try:
-        with open(LOG_FAILED_FILE, 'a', encoding='utf-8', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow([ts, recipient_email or '', recipient_name or '', subject or '', body or '', reason])
+        if sent_groups:
+            with open(LOG_SENT_FILE, 'a', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                for (subject, preview), data in sent_groups.items():
+                    ts = datetime.datetime.utcnow().isoformat()
+                    emails = ';'.join(data['emails'])
+                    names = ';'.join(data['names'])
+                    writer.writerow([ts, subject, preview, emails, names])
     except Exception as e:
-        print(f"Warning: failed to write to {LOG_FAILED_FILE}: {e}")
+        print(f"Warning: failed to flush {LOG_SENT_FILE}: {e}")
+
+    # write failed groups
+    try:
+        if failed_groups:
+            with open(LOG_FAILED_FILE, 'a', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                for (subject, preview), data in failed_groups.items():
+                    ts = datetime.datetime.utcnow().isoformat()
+                    emails = ';'.join(data['emails'])
+                    names = ';'.join(data['names'])
+                    reasons = ';'.join(data['reasons'])
+                    writer.writerow([ts, subject, preview, emails, names, reasons])
+    except Exception as e:
+        print(f"Warning: failed to flush {LOG_FAILED_FILE}: {e}")
 
 
 def send_personalized_email(server, sender_email, mentee_info, subject_template, body_template):
@@ -360,6 +394,12 @@ def main():
         print(f"An unexpected critical error occurred: {e}")
 
     print("\nEmail process finished.")
+
+    # flush grouped logs to files
+    try:
+        flush_logs()
+    except Exception as e:
+        print(f"Warning: failed to flush grouped logs: {e}")
 
 
 # Run the main function when the script is executed
