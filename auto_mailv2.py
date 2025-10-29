@@ -3,6 +3,8 @@ import smtplib
 import ssl
 import sys
 import re
+import os
+import datetime
 import argparse
 from email.message import EmailMessage
 
@@ -10,12 +12,14 @@ from email.message import EmailMessage
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 465
 #CSV_MAIN_FILE_NAME = "mentorluk kabul son.csv"
-CSV_TEST_FILE_NAME = "test.csv" # YENİ
-CSV_FILE_NAME = CSV_TEST_FILE_NAME  # ŞİMDİLİK TEST DOSYASINI KULLANIYORUZ
+CSV_TEST_FILE_NAME = "test.csv" 
+CSV_FILE_NAME = CSV_TEST_FILE_NAME  # Currently using the test file
 CONFIG_FILE_NAME = "config.txt"
-SUBJECT_FILE_NAME = "subject.txt"        # YENİ
-TEMPLATE_FILE_NAME = "email_template.html" # YENİ
+SUBJECT_FILE_NAME = "subject.txt"        
+TEMPLATE_FILE_NAME = "email_template.html" 
 SENDER_NAME = "MBK Organizasyon Komitesi Yönetim Kurulu"
+LOG_SENT_FILE = "sent_emails.csv"
+LOG_FAILED_FILE = "failed_emails.csv"
 # --- END OF CONFIGURATION ---
 
 
@@ -49,8 +53,8 @@ def load_text_file(filename):
     """
     try:
         with open(filename, 'r', encoding='utf-8') as f:
-            # Konu için readline(), template için read() kullanmak yerine
-            # ikisinde de read() kullanıp strip() ile temizlemek daha güvenli.
+            # Instead of using readline() for subject and read() for template,
+            # it's safer to use read() for both and clean with strip().
             content = f.read().strip()
             if not content:
                 print(f"Hata: '{filename}' dosyası boş.")
@@ -74,6 +78,37 @@ def safe_format(template, mapping):
     for k in mapping.keys():
         s = s.replace('{{' + k + '}}', '{' + k + '}')
     return s.format(**mapping)
+
+
+def ensure_log_file(path, headers):
+    """Ensure a CSV log file exists with the provided headers."""
+    if not os.path.exists(path):
+        try:
+            with open(path, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+        except Exception as e:
+            print(f"Warning: could not create log file {path}: {e}")
+
+
+def log_sent(recipient_email, recipient_name, subject, body):
+    ts = datetime.datetime.utcnow().isoformat()
+    try:
+        with open(LOG_SENT_FILE, 'a', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([ts, recipient_email or '', recipient_name or '', subject or '', body or ''])
+    except Exception as e:
+        print(f"Warning: failed to write to {LOG_SENT_FILE}: {e}")
+
+
+def log_failed(recipient_email, recipient_name, subject, body, reason):
+    ts = datetime.datetime.utcnow().isoformat()
+    try:
+        with open(LOG_FAILED_FILE, 'a', encoding='utf-8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([ts, recipient_email or '', recipient_name or '', subject or '', body or '', reason])
+    except Exception as e:
+        print(f"Warning: failed to write to {LOG_FAILED_FILE}: {e}")
 
 
 def send_personalized_email(server, sender_email, mentee_info, subject_template, body_template):
@@ -128,15 +163,39 @@ def send_personalized_email(server, sender_email, mentee_info, subject_template,
         # --- Send the Email ---
         server.send_message(msg)
         print(f"Successfully sent email to: {mentee_name} ({mentee_email})")
+        try:
+            log_sent(mentee_email, mentee_name, subject, body)
+        except Exception:
+            # don't break sending if logging fails
+            pass
         return True
         
     except KeyError as e:
         # Bu hata, template dosyasında (örn: {isim} gibi) eksik bir değişken olduğunda oluşur.
         print(f"Hata: {mentee_name} için e-posta oluşturulamadı. Template hatası: {e} değişkeni bulunamadı.")
+        # log failure
+        subj = locals().get('subject', '')
+        bod = locals().get('body', '')
+        try:
+            log_failed(mentee_email, mentee_name, subj, bod, f"template KeyError: {e}")
+        except Exception:
+            pass
     except smtplib.SMTPException as e:
         print(f"Error: Unable to send email to {mentee_name}. Reason: {e}")
+        subj = locals().get('subject', '')
+        bod = locals().get('body', '')
+        try:
+            log_failed(mentee_email, mentee_name, subj, bod, f"SMTPException: {e}")
+        except Exception:
+            pass
     except Exception as e:
         print(f"An unexpected error occurred for {mentee_name}: {e}")
+        subj = locals().get('subject', '')
+        bod = locals().get('body', '')
+        try:
+            log_failed(mentee_email, mentee_name, subj, bod, f"Exception: {e}")
+        except Exception:
+            pass
 
 
 def main():
@@ -171,6 +230,10 @@ def main():
         sys.exit(1)
 
     print("\nStarting email process... (dry-run=" + str(dry_run) + ")")
+
+    # Ensure log files exist with headers
+    ensure_log_file(LOG_SENT_FILE, ['timestamp','recipient_email','recipient_name','subject','body'])
+    ensure_log_file(LOG_FAILED_FILE, ['timestamp','recipient_email','recipient_name','subject','body','reason'])
 
     # Open the CSV file and either run in dry-run (no SMTP) or real send mode
     try:
@@ -238,6 +301,7 @@ def main():
 
                         if not mentee_email:
                             print(f"DRY-RUN: Skipping row #{total} - no recipient email: {row}")
+                            log_failed(mentee_email, mentee_name, '', '', 'no recipient email')
                             skipped += 1
                             continue
 
@@ -246,6 +310,8 @@ def main():
                         print(f"Subject: {subject}")
                         print("Body preview:")
                         print(body[:500])
+                        # Log as 'sent' in dry-run (formatted)
+                        log_sent(mentee_email, mentee_name, subject, body)
                         sent += 1
 
                     except Exception as e:
@@ -272,8 +338,10 @@ def main():
                                     body_template
                                 )
                                 if ok:
+                                    # send_personalized_email will log the sent entry
                                     sent += 1
                                 else:
+                                    # send_personalized_email should have logged the failure
                                     skipped += 1
                             except Exception as e:
                                 print(f"Error sending to row #{total}: {e}")

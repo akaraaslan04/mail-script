@@ -1,6 +1,8 @@
 # Ignore credentials and data
 config.txt
 *.csv
+sent_emails.csv
+failed_emails.csv
 
 # Python
 __pycache__/
