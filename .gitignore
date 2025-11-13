@@ -1,13 +1,86 @@
-# Ignore credentials and data
+====================================================================
+
+PROJECT-SPECIFIC DATA AND CREDENTIALS (SENSITIVE)
+
+Ignore all configuration files that store sender credentials.
+
+Ignore all log/output files created during script execution.
+
+====================================================================
+
+config.json
 config.txt
-*.csv
 sent_emails.csv
 failed_emails.csv
 
-# Python
-__pycache__/
-*.py[cod]
+User's other explicitly ignored CSV data files (assuming they are private)
 
-# Editor
-.vscode/
+test.csv
+rejection.csv
+ekstra kontenjan.csv
+
+====================================================================
+
+PYTHON ARTIFACTS
+
+Ignore compiled code, virtual environments, and testing caches.
+
+====================================================================
+
+Virtual environment directories
+
+venv/
+.venv/
+env/
+.env/
+
+Byte-code and compiled files
+
+pycache/
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+Testing and type-checking caches
+
+.pytest_cache/
+.mypy_cache/
+
+Distribution and packaging
+
+dist/
+build/
+*.egg-info/
+
+====================================================================
+
+IDE AND OS FILES
+
+Ignore files specific to operating systems or IDEs (VS Code, JetBrains).
+
+====================================================================
+
+macOS
+
 .DS_Store
+
+Windows
+
+Thumbs.db
+
+VS Code specific files
+
+.vscode/
+
+Keep essential shared configuration, but ignore user-specific workspaces
+
+!/.vscode/settings.json
+!/.vscode/tasks.json
+!/.vscode/extensions.json
+.vscode/*.code-workspace
+
+JetBrains/IntelliJ IDEs
+
+.idea/
+*.iml

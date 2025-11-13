@@ -2,97 +2,98 @@ import csv
 import smtplib
 import ssl
 import sys
-import re
 import os
 import datetime
 import argparse
+import json 
 from email.message import EmailMessage
 
-# --- CONFIGURATION ---
+# --- NEW CONFIGURATION (Constants) ---
+
+# These constants are for the underlying infrastructure and should not change frequently.
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 465
-#CSV_MAIN_FILE_NAME = "mentorluk kabul son.csv"
-CSV_TEST_FILE_NAME = "test.csv" 
-CSV_FILE_NAME = CSV_TEST_FILE_NAME  # Currently using the test file
-CONFIG_FILE_NAME = "config.txt"
-SUBJECT_FILE_NAME = "subject.txt"        
-TEMPLATE_FILE_NAME = "email_template.html" 
-SENDER_NAME = "MBK Organizasyon Komitesi Yönetim Kurulu"
+CONFIG_FILE_NAME = "config.json"
 LOG_SENT_FILE = "sent_emails.csv"
 LOG_FAILED_FILE = "failed_emails.csv"
+
+# In-memory group accumulators (subject + preview -> recipients)
+sent_groups = {}
+failed_groups = {}
 # --- END OF CONFIGURATION ---
 
-
-def load_credentials():
+def load_config():
     """
-    Reads sender email and app password from config.txt.
+    Reads sender email, app password, and sender name from config.json.
     """
     try:
         with open(CONFIG_FILE_NAME, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            if len(lines) < 2:
-                print(f"Hata: '{CONFIG_FILE_NAME}' dosyası eksik bilgi içeriyor.")
-                return None, None
-            sender_email = lines[0].strip()
-            sender_password = lines[1].strip()
-            if not sender_email or not sender_password:
-                print(f"Hata: '{CONFIG_FILE_NAME}' dosyasındaki bilgiler okunamadı.")
-                return None, None
-            return sender_email, sender_password
+            config = json.load(f)
+        
+        # Check for essential keys
+        if not all(key in config for key in ['sender_email', 'sender_password', 'sender_name']):
+            print(f"Error: '{CONFIG_FILE_NAME}' is missing required information. 'sender_email', 'sender_password', and 'sender_name' are mandatory.")
+            return None
+        
+        return config
     except FileNotFoundError:
-        print(f"--- HATA: '{CONFIG_FILE_NAME}' dosyası bulunamadı. ---")
-        return None, None
+        print(f"--- ERROR: '{CONFIG_FILE_NAME}' file not found. ---")
+        print("Please create a config.json file with email credentials and sender name.")
+        return None
+    except json.JSONDecodeError:
+        print(f"Error: '{CONFIG_FILE_NAME}' is not a valid JSON format.")
+        return None
     except Exception as e:
-        print(f"Config dosyası okunurken beklenmedik bir hata oluştu: {e}")
-        return None, None
+        print(f"An unexpected error occurred while reading the config file: {e}")
+        return None
 
 
-def load_text_file(filename):
+def load_text_file(filepath):
     """
     Reads the full content of a given text file (for subject or template).
     """
     try:
-        with open(filename, 'r', encoding='utf-8') as f:
-            # Instead of using readline() for subject and read() for template,
-            # it's safer to use read() for both and clean with strip().
+        with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read().strip()
             if not content:
-                print(f"Hata: '{filename}' dosyası boş.")
+                print(f"Error: '{filepath}' file is empty.")
                 return None
             return content
     except FileNotFoundError:
-        print(f"--- HATA: '{filename}' dosyası bulunamadı. ---")
+        print(f"--- ERROR: '{filepath}' file not found. ---")
         return None
     except Exception as e:
-        print(f"'{filename}' dosyası okunurken bir hata oluştu: {e}")
+        print(f"An error occurred while reading '{filepath}': {e}")
         return None
 
 
 def safe_format(template, mapping):
-    """Escape all braces, then restore known placeholders before formatting.
-    This avoids interpreting CSS braces or other {...} as format fields.
     """
-    # Escape all braces so they become literal
+    Escapes all braces, then restores known placeholders before formatting.
+    This prevents interpreting non-placeholder braces (like CSS) as format fields.
+    """
+    # Escape all braces so they become literals
     s = template.replace('{', '{{').replace('}', '}}')
     # Restore the placeholders we actually want to format
     for k in mapping.keys():
         s = s.replace('{{' + k + '}}', '{' + k + '}')
+    
     return s.format(**mapping)
 
 
 def ensure_log_file(path, headers):
-    """Ensure a CSV log file exists with the provided headers."""
+    """Ensures a CSV log file exists with the provided headers."""
     if not os.path.exists(path):
         try:
             with open(path, 'w', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)
         except Exception as e:
-            print(f"Warning: could not create log file {path}: {e}")
+            print(f"Warning: could not create log file '{path}': {e}")
 
 
 def log_sent(recipient_email, recipient_name, subject, body):
-    # accumulate to in-memory group; actual file write happens in flush_logs()
+    """Accumulates sent entries to in-memory group."""
     key = (subject or '', (body or '')[:400])
     sent_groups.setdefault(key, {'emails': [], 'names': []})
     sent_groups[key]['emails'].append(recipient_email or '')
@@ -100,37 +101,31 @@ def log_sent(recipient_email, recipient_name, subject, body):
 
 
 def log_failed(recipient_email, recipient_name, subject, body, reason):
-    # accumulate to in-memory group; actual file write happens in flush_logs()
+    """Accumulates failed entries to in-memory group."""
     key = (subject or '', (body or '')[:400])
     failed_groups.setdefault(key, {'emails': [], 'names': [], 'reasons': []})
     failed_groups[key]['emails'].append(recipient_email or '')
     failed_groups[key]['names'].append(recipient_name or '')
     failed_groups[key]['reasons'].append(reason or '')
 
-# In-memory group accumulators (subject + preview -> recipients)
-sent_groups = {}
-failed_groups = {}
-
 
 def flush_logs():
-    """Write grouped sent/failed entries to CSV files.
-
-    Each grouped row contains one template (subject + preview) and a list of recipients.
-    """
-    # write sent groups
+    """Writes grouped sent/failed entries from memory to CSV log files."""
+    # Write sent groups
     try:
         if sent_groups:
+            # Use 'a' (append) mode since headers were created by ensure_log_file
             with open(LOG_SENT_FILE, 'a', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f)
                 for (subject, preview), data in sent_groups.items():
                     ts = datetime.datetime.utcnow().isoformat()
                     emails = ';'.join(data['emails'])
                     names = ';'.join(data['names'])
-                    writer.writerow([ts, subject, preview, emails, names])
+                    writer.writerow([ts, emails, names, subject, preview]) 
     except Exception as e:
-        print(f"Warning: failed to flush {LOG_SENT_FILE}: {e}")
+        print(f"Warning: failed to flush '{LOG_SENT_FILE}': {e}")
 
-    # write failed groups
+    # Write failed groups
     try:
         if failed_groups:
             with open(LOG_FAILED_FILE, 'a', encoding='utf-8', newline='') as f:
@@ -140,221 +135,193 @@ def flush_logs():
                     emails = ';'.join(data['emails'])
                     names = ';'.join(data['names'])
                     reasons = ';'.join(data['reasons'])
-                    writer.writerow([ts, subject, preview, emails, names, reasons])
+                    writer.writerow([ts, emails, names, subject, preview, reasons])
     except Exception as e:
-        print(f"Warning: failed to flush {LOG_FAILED_FILE}: {e}")
+        print(f"Warning: failed to flush '{LOG_FAILED_FILE}': {e}")
 
 
-def send_personalized_email(server, sender_email, mentee_info, subject_template, body_template):
+def send_single_email(server, sender_email, sender_name, recipient_data, subject_template, body_template, email_column, name_column):
     """
-    Uses an *existing* server connection to send a single personalized email.
+    Uses an existing server connection to send a single personalized email.
+    Takes column names as parameters for generalized use.
     """
-    # Extract data from the row
-    mentee_name = mentee_info.get('Mentee Ad-Soyad')
-    mentee_email = mentee_info.get('E-Posta Adresi')
-    mentor_name = mentee_info.get('Mentör Ad-Soyad')
+    
+    # Extract recipient columns
+    recipient_name = recipient_data.get(name_column, 'Unknown')
+    recipient_email = recipient_data.get(email_column)
 
-    # Clean up contact info
-    mentor_linkedin = mentee_info.get('LinkedIn') if mentee_info.get('LinkedIn') not in (None, '-') else 'Belirtilmedi'
-    mentor_email = mentee_info.get('E-Posta') if mentee_info.get('E-Posta') not in (None, '-') else 'Belirtilmedi'
-    mentor_phone = mentee_info.get('Telefon Numarası') if mentee_info.get('Telefon Numarası') not in (None, '-') else 'Belirtilmedi'
-
-    # use module-level safe_format
-
+    # --- Create the Email Subject and Body from Templates ---
     try:
-        # --- Create the Email Subject and Body from Templates ---
-
-        # Prepare mapping (include both lowercase and uppercase sender key because templates vary)
-        mapping = {
-            'mentee_name': mentee_name,
-            'mentor_name': mentor_name,
-            'mentor_linkedin': mentor_linkedin,
-            'mentor_email': mentor_email,
-            'mentor_phone': mentor_phone,
-            'sender_name': SENDER_NAME,
-            'SENDER_NAME': SENDER_NAME,
-        }
+        # Prepare mapping (include all data from the row)
+        mapping = recipient_data.copy()
+        mapping['sender_name'] = sender_name
+        mapping['SENDER_NAME'] = sender_name 
+        
+        # Convert None values to empty strings to prevent formatting errors
+        for key, value in mapping.items():
+            if value is None:
+                mapping[key] = ''
+            # Also handle non-string types if they might be in the CSV
+            elif not isinstance(value, str):
+                 mapping[key] = str(value)
 
         # Format the subject and body safely
         subject = safe_format(subject_template, mapping)
         body = safe_format(body_template, mapping)
 
+        # If we couldn't find a recipient email, skip and warn
+        if not recipient_email:
+            print(f"Skipping: No valid recipient email found for {recipient_name}. Row: {recipient_data}")
+            log_failed(None, recipient_name, subject, body, 'no recipient email')
+            return False
+        
         # Create the EmailMessage object
         msg = EmailMessage()
         msg['Subject'] = subject
-        # Use only the raw sender email in the From header to avoid email clients
-        # showing a long display name above the subject. This keeps the subject
-        # exactly as provided in `subject.txt`.
-        msg['From'] = sender_email
-        msg['To'] = mentee_email
+        msg['From'] = f"{sender_name} <{sender_email}>"
+        msg['To'] = recipient_email
         msg.add_alternative(body, subtype='html')
-
-        # If we couldn't find a recipient email, skip and warn
-        if not mentee_email:
-            print(f"Skipping {mentee_name}: no valid recipient email found in row: {mentee_info}")
-            return False
 
         # --- Send the Email ---
         server.send_message(msg)
-        print(f"Successfully sent email to: {mentee_name} ({mentee_email})")
-        try:
-            log_sent(mentee_email, mentee_name, subject, body)
-        except Exception:
-            # don't break sending if logging fails
-            pass
+        print(f"Successfully sent email to: {recipient_name} ({recipient_email})")
+        log_sent(recipient_email, recipient_name, subject, body)
         return True
         
     except KeyError as e:
-        # Bu hata, template dosyasında (örn: {isim} gibi) eksik bir değişken olduğunda oluşur.
-        print(f"Hata: {mentee_name} için e-posta oluşturulamadı. Template hatası: {e} değişkeni bulunamadı.")
-        # log failure
+        # Template variable missing in CSV columns or mapping
+        print(f"Error: Could not format email for {recipient_name}. Template error: Variable {e} not found in CSV columns or mapping.")
         subj = locals().get('subject', '')
         bod = locals().get('body', '')
-        try:
-            log_failed(mentee_email, mentee_name, subj, bod, f"template KeyError: {e}")
-        except Exception:
-            pass
+        log_failed(recipient_email, recipient_name, subj, bod, f"template KeyError: {e}")
+        return False
     except smtplib.SMTPException as e:
-        print(f"Error: Unable to send email to {mentee_name}. Reason: {e}")
+        print(f"Error: Unable to send email to {recipient_name}. Reason: {e}")
         subj = locals().get('subject', '')
         bod = locals().get('body', '')
-        try:
-            log_failed(mentee_email, mentee_name, subj, bod, f"SMTPException: {e}")
-        except Exception:
-            pass
+        log_failed(recipient_email, recipient_name, subj, bod, f"SMTPException: {e}")
+        return False
     except Exception as e:
-        print(f"An unexpected error occurred for {mentee_name}: {e}")
+        print(f"An unexpected error occurred for {recipient_name}: {e}")
         subj = locals().get('subject', '')
         bod = locals().get('body', '')
-        try:
-            log_failed(mentee_email, mentee_name, subj, bod, f"Exception: {e}")
-        except Exception:
-            pass
+        log_failed(recipient_email, recipient_name, subj, bod, f"Exception: {e}")
+        return False
 
 
 def main():
     """
-    Main function to get credentials, read CSV, and loop through mentees.
-    This version reads credentials, subject, and template from files.
+    Main function: Loads configuration, parses command-line arguments, and runs the email loop.
     """
     
-    # Parse command-line args (minimal)
-    parser = argparse.ArgumentParser(description='Send personalized emails')
-    parser.add_argument('--dry-run', action='store_true', help='Format and print messages without sending')
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Sends personalized emails using CSV data.')
+    parser.add_argument('data_source_file', help='The name of the CSV file containing recipient data.')
+    parser.add_argument('subject_template_file', help='The name of the TXT file containing the email subject template.')
+    parser.add_argument('body_template_file', help='The name of the file containing the email body template (HTML/TXT).')
+    parser.add_argument('--dry-run', action='store_true', help='Format and print messages without sending.')
+    parser.add_argument('--email-col', default='E-Posta Adresi', help='The CSV column name for the recipient email address.')
+    parser.add_argument('--name-col', default='Ad-Soyad', help='The CSV column name for the recipient name.')
+    
     args = parser.parse_args()
+    
     dry_run = args.dry_run
+    data_source_file = args.data_source_file
+    subject_template_file = args.subject_template_file
+    body_template_file = args.body_template_file
+    email_column = args.email_col
+    name_column = args.name_col
 
-    # Load credentials (optional for dry-run), subject, and template
-    sender_email, sender_password = load_credentials()
-    subject_template = load_text_file(SUBJECT_FILE_NAME)
-    body_template = load_text_file(TEMPLATE_FILE_NAME)
-
-    # If templates are missing, stop the script
-    if not all([subject_template, body_template]):
-        print("Program durduruluyor. Lütfen eksik dosyaları veya hataları kontrol edin.")
-        sys.exit(1) # Stop script with an error code
-
-    # For dry-run, we allow missing credentials; substitute a placeholder sender if needed
-    if dry_run and not sender_email:
-        sender_email = 'no-reply@example.com'
-
-    # If sending for real, ensure credentials are present
-    if (not dry_run) and (not all([sender_email, sender_password])):
-        print("Program durduruluyor. Lütfen eksik dosyaları veya hataları kontrol edin.")
+    # Load Configuration
+    config = load_config()
+    if not config and not dry_run:
+        sys.exit(1)
+    
+    # Check credentials for actual sending
+    if not dry_run and not all(config.get(k) for k in ['sender_email', 'sender_password']):
+        print("Program stopped. Please check for missing credentials in 'config.json'.")
         sys.exit(1)
 
-    print("\nStarting email process... (dry-run=" + str(dry_run) + ")")
+    # Load Templates
+    subject_template = load_text_file(subject_template_file)
+    body_template = load_text_file(body_template_file)
+
+    if not all([subject_template, body_template]):
+        print("Program stopped. Please check for missing template files.")
+        sys.exit(1) 
+
+    # Determine sender details (use placeholders for dry-run if config failed)
+    sender_email = config.get('sender_email', 'no-reply@example.com') if config else 'no-reply@example.com'
+    sender_password = config.get('sender_password', '') if config else ''
+    sender_name = config.get('sender_name', 'Unknown Sender') if config else 'Unknown Sender'
+
+    print(f"\nProcess Starting... (Dry-run: {dry_run})")
+    print(f"Data Source: {data_source_file}")
+    print(f"Sender: {sender_name} <{sender_email}>")
 
     # Ensure log files exist with headers
-    ensure_log_file(LOG_SENT_FILE, ['timestamp','recipient_email','recipient_name','subject','body'])
-    ensure_log_file(LOG_FAILED_FILE, ['timestamp','recipient_email','recipient_name','subject','body','reason'])
+    ensure_log_file(LOG_SENT_FILE, ['timestamp', 'recipient_emails', 'recipient_names', 'subject', 'body_preview'])
+    ensure_log_file(LOG_FAILED_FILE, ['timestamp', 'recipient_emails', 'recipient_names', 'subject', 'body_preview', 'reason'])
 
-    # Open the CSV file and either run in dry-run (no SMTP) or real send mode
+    # Open the CSV file and process recipients
     try:
-        with open(CSV_FILE_NAME, mode='r', encoding='utf-8') as file:
-            sample = file.read(2048)
-            file.seek(0)
+        with open(data_source_file, mode='r', encoding='utf-8') as file:
             try:
-                has_header = csv.Sniffer().has_header(sample)
-            except Exception:
-                has_header = False
-
-            if has_header:
+                # Assuming DictReader is used, it expects a header row
                 csv_reader = csv.DictReader(file)
-            else:
-                fieldnames = ['Mentee Ad-Soyad','E-Posta Adresi','Mentör Ad-Soyad','LinkedIn','E-Posta','Telefon Numarası']
-                csv_reader = csv.DictReader(file, fieldnames=fieldnames)
+                # Quick check for the critical email column
+                if email_column not in csv_reader.fieldnames:
+                    print(f"Critical Error: Email column '{email_column}' not found in the CSV file headers: {csv_reader.fieldnames}")
+                    sys.exit(1)
+            except Exception as e:
+                print(f"CSV reading error occurred: {e}")
+                sys.exit(1)
 
             total = 0
             sent = 0
             skipped = 0
 
+            # --- Dry-run or Real Send ---
             if dry_run:
-                # Dry-run: format and print messages without SMTP
+                # Dry-run: Format and print messages
                 for row in csv_reader:
                     total += 1
                     try:
-                        # Try to build subject/body similarly to send_personalized_email
-                        mentee_name = row.get('Mentee Ad-Soyad')
-                        mentee_email = row.get('E-Posta Adresi')
-                        mentor_name = row.get('Mentör Ad-Soyad')
-
-                        mentor_linkedin = row.get('LinkedIn') if row.get('LinkedIn') != '-' else 'Belirtilmedi'
-                        mentor_email = row.get('E-Posta') if row.get('E-Posta') != '-' else 'Belirtilmedi'
-                        mentor_phone = row.get('Telefon Numarası') if row.get('Telefon Numarası') != '-' else 'Belirtilmedi'
-
-                        # Use safe_format (but capture escaped version for debugging if needed)
-                        try:
-                            subject = safe_format(subject_template, {
-                                'mentee_name': mentee_name,
-                                'mentor_name': mentor_name,
-                            })
-                        except Exception as e:
-                            s_sub = subject_template.replace('{', '{{').replace('}', '}}')
-                            for k in ('mentee_name','mentor_name'):
-                                s_sub = s_sub.replace('{{' + k + '}}', '{' + k + '}')
-                            print(f"DRY-RUN: Failed formatting subject; escaped preview:\n{s_sub[:400]}")
-                            raise
-
-                        try:
-                            body = safe_format(body_template, {
-                                'mentee_name': mentee_name,
-                                'mentor_name': mentor_name,
-                                'mentor_linkedin': mentor_linkedin,
-                                'mentor_email': mentor_email,
-                                'mentor_phone': mentor_phone,
-                                'sender_name': SENDER_NAME,
-                                'SENDER_NAME': SENDER_NAME,
-                            })
-                        except Exception as e:
-                            s_body = body_template.replace('{', '{{').replace('}', '}}')
-                            for k in ('mentee_name','mentor_name','mentor_linkedin','mentor_email','mentor_phone','sender_name','SENDER_NAME'):
-                                s_body = s_body.replace('{{' + k + '}}', '{' + k + '}')
-                            print(f"DRY-RUN: Failed formatting body; escaped preview:\n{s_body[:400]}")
-                            raise
-
-                        if not mentee_email:
-                            print(f"DRY-RUN: Skipping row #{total} - no recipient email: {row}")
-                            log_failed(mentee_email, mentee_name, '', '', 'no recipient email')
+                        # Prepare mapping and format similarly to send_single_email
+                        mapping = row.copy()
+                        mapping['sender_name'] = sender_name
+                        mapping['SENDER_NAME'] = sender_name
+                        for key, value in mapping.items():
+                            if value is None:
+                                mapping[key] = ''
+                                
+                        subject = safe_format(subject_template, mapping)
+                        body = safe_format(body_template, mapping)
+                        
+                        recipient_name = row.get(name_column, 'Unknown')
+                        recipient_email = row.get(email_column)
+                        
+                        if not recipient_email:
+                            print(f"DRY-RUN: Skipping row #{total} - no recipient email: {recipient_name}")
+                            log_failed(recipient_email, recipient_name, subject, body, 'no recipient email')
                             skipped += 1
                             continue
-
+                            
                         print(f"\n--- DRY-RUN Message #{total} ---")
-                        print(f"To: {mentee_email}")
+                        print(f"To: {recipient_email} ({recipient_name})")
                         print(f"Subject: {subject}")
                         print("Body preview:")
-                        print(body[:500])
-                        # Log as 'sent' in dry-run (formatted)
-                        log_sent(mentee_email, mentee_name, subject, body)
+                        print(body[:500] + "..." if len(body) > 500 else body)
+                        log_sent(recipient_email, recipient_name, subject, body)
                         sent += 1
-
                     except Exception as e:
                         print(f"DRY-RUN Error formatting row #{total}: {e}")
                         skipped += 1
-
+                
                 print(f"\nDRY-RUN CSV rows processed: {total}, messages formatted: {sent}, skipped: {skipped}")
+            
             else:
-                # Real send path: connect to SMTP and send messages
+                # Real Send: Connect to SMTP and send messages
                 context = ssl.create_default_context()
                 try:
                     with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
@@ -363,43 +330,41 @@ def main():
 
                         for row in csv_reader:
                             total += 1
-                            try:
-                                ok = send_personalized_email(
-                                    server,
-                                    sender_email,
-                                    row,
-                                    subject_template,
-                                    body_template
-                                )
-                                if ok:
-                                    # send_personalized_email will log the sent entry
-                                    sent += 1
-                                else:
-                                    # send_personalized_email should have logged the failure
-                                    skipped += 1
-                            except Exception as e:
-                                print(f"Error sending to row #{total}: {e}")
+                            ok = send_single_email(
+                                server,
+                                sender_email,
+                                sender_name,
+                                row,
+                                subject_template,
+                                body_template,
+                                email_column,
+                                name_column
+                            )
+                            if ok:
+                                sent += 1
+                            else:
                                 skipped += 1
-
+                        
                         print(f"\nCSV rows processed: {total}, sent: {sent}, skipped: {skipped}")
+                
                 except smtplib.SMTPAuthenticationError:
                     print("\n--- CRITICAL ERROR ---")
                     print("Login failed. Program stopped.")
-                    print(f"Please check your email and password in '{CONFIG_FILE_NAME}'.")
+                    print(f"Please check your email and application password in '{CONFIG_FILE_NAME}'.")
+                except Exception as e:
+                    print(f"An unexpected error occurred during the SMTP connection: {e}")
+
 
     except FileNotFoundError:
-        print(f"Error: The file '{CSV_FILE_NAME}' was not found.")
-        print("Please make sure the CSV file is in the same directory as the script.")
+        print(f"Error: The file '{data_source_file}' was not found.")
+        print("Please ensure the CSV file is in the same directory as the script.")
     except Exception as e:
         print(f"An unexpected critical error occurred: {e}")
 
     print("\nEmail process finished.")
 
-    # flush grouped logs to files
-    try:
-        flush_logs()
-    except Exception as e:
-        print(f"Warning: failed to flush grouped logs: {e}")
+    # Flush grouped logs to files
+    flush_logs()
 
 
 # Run the main function when the script is executed

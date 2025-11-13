@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personalized Email Sender Script Documentation (Dark Mode)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font import and styling */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Darkest background (slate-900) */
+        }
+        .code-block {
+            background-color: #0f172a; /* Even darker background for code blocks (slate-950) */
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-size: 0.9rem;
+        }
+        .code-title {
+            color: #818cf8; /* Light indigo color for code titles */
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-5xl mx-auto bg-gray-800 shadow-2xl rounded-xl p-6 md:p-12">
+
+        <!-- Header -->
+        <header class="mb-10 border-b-4 border-indigo-500 pb-4">
+            <h1 class="text-5xl font-extrabold text-white mb-2">
+                📧 Personalized Email Sender Script
+            </h1>
+            <p class="text-xl text-gray-300 mt-2">
+                A robust Python utility for secure, dynamic email campaigns using CSV data and separate templates.
+            </p>
+        </header>
+
+        <!-- Features -->
+        <section id="features" class="mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6 border-b border-gray-700 pb-2 flex items-center">
+                <span class="mr-3 text-indigo-400">✨</span> Features
+            </h2>
+            <ul class="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-300">
+                <li class="flex items-start p-3 bg-gray-700 rounded-lg shadow-md">
+                    <svg class="w-6 h-6 mr-3 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.047m0 0l-2.5 12h17.236l-2.5-12z"></path></svg>
+                    <div>
+                        <strong>Personalization:</strong> Uses CSV data to dynamically fill **placeholders** in subject and body templates.
+                    </div>
+                </li>
+                <li class="flex items-start p-3 bg-gray-700 rounded-lg shadow-md">
+                    <svg class="w-6 h-6 mr-3 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0015.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    <div>
+                        <strong>HTML Support:</strong> Sends emails using the **multipart/alternative** structure for professional HTML bodies.
+                    </div>
+                </li>
+                <li class="flex items-start p-3 bg-gray-700 rounded-lg shadow-md">
+                    <svg class="w-6 h-6 mr-3 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div>
+                        <strong>Safe Formatting:</strong> Employs a unique function to prevent errors from non-placeholder braces (e.g., in CSS or JSON code blocks).
+                    </div>
+                </li>
+                <li class="flex items-start p-3 bg-gray-700 rounded-lg shadow-md">
+                    <svg class="w-6 h-6 mr-3 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    <div>
+                        <strong>Dry-Run Mode:</strong> Test content generation and formatting safely without ever connecting to the SMTP server.
+                    </div>
+                </li>
+                <li class="flex items-start p-3 bg-gray-700 rounded-lg shadow-md">
+                    <svg class="w-6 h-6 mr-3 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div>
+                        <strong>Logging:</strong> Automatically creates **success** and **failure** CSV log files with full details.
+                    </div>
+                </li>
+                <li class="flex items-start p-3 bg-gray-700 rounded-lg shadow-md">
+                    <svg class="w-6 h-6 mr-3 text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v3h8z"></path></svg>
+                    <div>
+                        <strong>SMTP Security:</strong> Enforces security by using **SMTP_SSL** (Port 465) for connecting to the server (defaulting to Gmail).
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <!-- Setup and Usage -->
+        <section id="setup" class="mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6 border-b border-gray-700 pb-2 flex items-center">
+                <span class="mr-3 text-indigo-400">🚀</span> Setup and Usage
+            </h2>
+
+            <!-- 1. Prerequisites -->
+            <h3 class="text-2xl font-semibold text-gray-200 mb-3 mt-6">1. Prerequisites</h3>
+            <p class="text-gray-300 mb-4">
+                You need **Python 3.x** installed. The script uses only standard libraries, so no external installations are required.
+            </p>
+
+            <!-- 2. Configuration File -->
+            <h3 class="text-2xl font-semibold text-gray-200 mb-3 mt-6">2. Configuration File (<code class="font-mono text-pink-400">config.json</code>)</h3>
+            <p class="text-gray-300 mb-3">
+                Create this file in the script's directory to hold your sender credentials.
+                <span class="font-bold text-red-400 block mt-1">Note on Gmail:</span> You must use an **App Password** instead of your regular account password if you have 2FA enabled.
+            </p>
+            <span class="code-title">config.json example (JSON)</span>
+            <div class="code-block">
+                <pre><code>{
+    "sender_email": "your_email@gmail.com",
+    "sender_password": "your_gmail_app_password",
+    "sender_name": "Your Company Name"
+}</code></pre>
+            </div>
+
+            <!-- 3. Data File (CSV) -->
+            <h3 class="text-2xl font-semibold text-gray-200 mb-3 mt-6">3. Data File (<code class="font-mono text-pink-400">recipients.csv</code>)</h3>
+            <p class="text-gray-300 mb-3">
+                Your recipient data must be in a CSV file. The column headers become the personalization variables you can use in your templates.
+            </p>
+            <span class="code-title">recipients.csv example</span>
+            <div class="code-block">
+                <pre><code>E-Posta Adresi,Ad-Soyad,Unvan,Takim
+alice@example.com,Alice Smith,Developer,Engineering
+bob@example.com,Bob Johnson,Designer,Creative</code></pre>
+            </div>
+
+            <!-- 4. Template Files -->
+            <h3 class="text-2xl font-semibold text-gray-200 mb-3 mt-6">4. Template Files (<code class="font-mono text-pink-400">subject.txt</code> and <code class="font-mono text-pink-400">body.html</code>)</h3>
+            <p class="text-gray-300 mb-3">
+                Create separate text files for the subject and body. Use the CSV column headers (or built-in variables like <code class="font-mono">{SENDER_NAME}</code>) as placeholders, enclosed in curly braces <code class="font-mono">{}</code>.
+            </p>
+
+            <h4 class="text-xl font-semibold text-gray-200 mb-2 mt-4">A. Subject Template (<code class="font-mono text-pink-400">subject.txt</code>)</h4>
+            <span class="code-title">subject.txt example (TXT)</span>
+            <div class="code-block">
+                <pre><code>Your Project Update: {Takim} - {Unvan}</code></pre>
+            </div>
+
+            <h4 class="text-xl font-semibold text-gray-200 mb-2 mt-4">B. Body Template (<code class="font-mono text-pink-400">body.html</code>)</h4>
+            <p class="text-gray-300 mb-3">
+                The body can be plain text or HTML. **Note the use of doubled braces (<code class="font-mono">\{\{</code> and <code class="font-mono">\}\}</code>) for CSS to avoid conflicts with the safe formatting logic.**
+            </p>
+            <span class="code-title">body.html example (HTML)</span>
+            <div class="code-block">
+                <pre><code>&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;head&gt;
+    &lt;style&gt;
+        /* CSS is fine here */
+        body {{ font-family: sans-serif; }}
+        .highlight {{ color: #007bff; font-weight: bold; }}
+    &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
+    &lt;p&gt;Dear {Ad-Soyad},&lt;/p&gt;
+    &lt;p&gt;This is your personalized update for the &lt;strong&gt;{Takim}&lt;/strong&gt; team.&lt;/p&gt;
+    &lt;p&gt;We are excited about the work our &lt;span class="highlight"&gt;{Unvan}&lt;/span&gt;s are doing!&lt;/p&gt;
+    &lt;p&gt;The built-in variable &lt;strong&gt;{SENDER_NAME}&lt;/strong&gt; is available as well.&lt;/p&gt;
+    &lt;br&gt;
+    &lt;p&gt;Sincerely,&lt;/p&gt;
+    &lt;p&gt;{SENDER_NAME}&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</code></pre>
+            </div>
+        </section>
+
+        <!-- Execution -->
+        <section id="execution" class="mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6 border-b border-gray-700 pb-2 flex items-center">
+                <span class="mr-3 text-indigo-400">⚙️</span> Execution
+            </h2>
+            <p class="text-gray-300 mb-4">
+                Run the script from your terminal using the following command structure:
+            </p>
+            <span class="code-title">Command Structure (Bash)</span>
+            <div class="code-block mb-6">
+                <pre><code>python your_script_name.py &lt;data_file.csv&gt; &lt;subject_file.txt&gt; &lt;body_file.html&gt; [options]</code></pre>
+            </div>
+
+            <h3 class="text-2xl font-semibold text-gray-200 mb-3 mt-6">Example (Real Send)</h3>
+            <span class="code-title">Example Command (Bash)</span>
+            <div class="code-block mb-6">
+                <pre><code>python email_sender.py recipients.csv subject.txt body.html</code></pre>
+            </div>
+
+            <h3 class="text-2xl font-semibold text-gray-200 mb-3 mt-6">Example (Dry-Run)</h3>
+            <p class="text-gray-300 mb-3">
+                The <code class="font-mono text-pink-400">--dry-run</code> flag will format the emails and print them to the console without connecting to the SMTP server.
+            </p>
+            <span class="code-title">Dry-Run Command (Bash)</span>
+            <div class="code-block mb-6">
+                <pre><code>python email_sender.py recipients.csv subject.txt body.html --dry-run</code></pre>
+            </div>
+
+            <h3 class="text-2xl font-semibold text-gray-200 mb-3 mt-6">Example (Custom Column Names)</h3>
+            <p class="text-gray-300 mb-3">
+                If your CSV columns are named differently (e.g., English headers), use the optional arguments:
+            </p>
+            <span class="code-title">Custom Columns Command (Bash)</span>
+            <div class="code-block">
+                <pre><code>python email_sender.py data.csv subj.txt body.html --email-col 'Email' --name-col 'Full Name'</code></pre>
+            </div>
+
+        </section>
+
+        <!-- Arguments -->
+        <section id="arguments" class="mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6 border-b border-gray-700 pb-2 flex items-center">
+                <span class="mr-3 text-indigo-400">💬</span> Command Line Arguments
+            </h2>
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-indigo-700 text-white">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-sm font-medium uppercase tracking-wider">Argument</th>
+                            <th class="px-6 py-3 text-left text-sm font-medium uppercase tracking-wider">Description</th>
+                            <th class="px-6 py-3 text-left text-sm font-medium uppercase tracking-wider">Default</th>
+                            <th class="px-6 py-3 text-left text-sm font-medium uppercase tracking-wider">Mandatory</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-gray-700 divide-y divide-gray-700">
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                <code class="font-mono">data_source_file</code>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-300">
+                                The path to your recipient CSV file.
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">N/A</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-400">Yes</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                <code class="font-mono">subject_template_file</code>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-300">
+                                The path to your subject TXT file.
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">N/A</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-400">Yes</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                <code class="font-mono">body_template_file</code>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-300">
+                                The path to your body HTML/TXT file.
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">N/A</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-400">Yes</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                <code class="font-mono">--dry-run</code>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-300">
+                                Flag to format and print, but not send, emails.
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">False</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-red-400">No</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                <code class="font-mono">--email-col</code>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-300">
+                                The CSV column header for the recipient's email address.
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">E-Posta Adresi</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-red-400">No</td>
+                        </tr>
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                                <code class="font-mono">--name-col</code>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-300">
+                                The CSV column header for the recipient's name.
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">Ad-Soyad</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-red-400">No</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Logging -->
+        <section id="logging" class="mb-12">
+            <h2 class="text-3xl font-bold text-white mb-6 border-b border-gray-700 pb-2 flex items-center">
+                <span class="mr-3 text-indigo-400">📝</span> Logging
+            </h2>
+            <p class="text-gray-300 mb-4">
+                The script automatically creates and appends to two log files in the script's directory:
+            </p>
+            <ul class="space-y-4">
+                <li class="flex items-start p-4 bg-gray-700 rounded-lg shadow-md">
+                    <span class="text-xl font-mono text-green-400 mr-4 flex-shrink-0">✓</span>
+                    <div>
+                        <strong class="text-white">sent_emails.csv:</strong>
+                        Logs details of successfully sent emails, grouped by identical subject/body preview to keep the log file concise.
+                    </div>
+                </li>
+                <li class="flex items-start p-4 bg-gray-700 rounded-lg shadow-md">
+                    <span class="text-xl font-mono text-red-400 mr-4 flex-shrink-0">✗</span>
+                    <div>
+                        <strong class="text-white">failed_emails.csv:</strong>
+                        Logs details and the reason for any failed or skipped email attempts (e.g., missing personalization data, SMTP error).
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+        <!-- Footer -->
+        <footer class="pt-6 mt-8 border-t border-gray-700 text-center text-sm text-gray-500">
+            <p>Documentation converted from Markdown to HTML for optimal viewing.</p>
+        </footer>
+
+    </div>
+</body>
+</html>
